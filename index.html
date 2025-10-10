@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kampala Health Centers Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .controls {
+            padding: 20px 30px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        #searchInput {
+            flex: 1;
+            padding: 12px 20px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.3s;
+        }
+
+        #searchInput:focus {
+            outline: none;
+            border-color: #06b6d4;
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(6, 182, 212, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        #searchResults {
+            margin-top: 10px;
+            font-size: 14px;
+            color: #6c757d;
+        }
+
+        #map {
+            width: 100%;
+            height: 600px;
+        }
+
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .popup-content h3 {
+            color: #0891b2;
+            margin-bottom: 10px;
+            font-size: 1.3em;
+        }
+
+        .popup-content p {
+            margin: 8px 0;
+            line-height: 1.6;
+        }
+
+        .popup-content strong {
+            color: #333;
+        }
+
+        .legend {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            line-height: 24px;
+        }
+
+        .legend h4 {
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            border-radius: 50%;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            header h1 {
+                font-size: 1.5em;
+            }
+
+            header p {
+                font-size: 0.9em;
+            }
+
+            #map {
+                height: 400px;
+            }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🏥 Kampala Health Centers</h1>
+            <p>Interactive GIS Map of Healthcare Facilities</p>
+        </header>
+        
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search for a health center by name...">
+                <button class="btn btn-primary" onclick="searchHealthCenter()">Search</button>
+                <button class="btn btn-secondary" onclick="showMyLocation()">My Location</button>
+            </div>
+            <div id="searchResults"></div>
+        </div>
+        
+        <div id="map"></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script>
+        // GeoJSON data for health centers in Kampala
+        const healthCentersData = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Mulago National Referral Hospital",
+                        "type": "Hospital",
+                        "contact": "+256-414-554-400",
+                        "description": "Uganda's largest public hospital and teaching facility"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.5757, 0.3354]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Mengo Hospital",
+                        "type": "Hospital",
+                        "contact": "+256-414-270-251",
+                        "description": "Private not-for-profit hospital providing comprehensive care"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.5523, 0.3005]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Naguru General Hospital",
+                        "type": "Hospital",
+                        "contact": "+256-414-234-400",
+                        "description": "Government hospital offering general medical services"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.6045, 0.3325]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Kiswa Health Center III",
+                        "type": "Clinic",
+                        "contact": "+256-772-123-456",
+                        "description": "Community health center providing primary care services"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.5890, 0.3150]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Kawaala Health Center II",
+                        "type": "Dispensary",
+                        "contact": "+256-700-987-654",
+                        "description": "Basic health services and immunization center"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.5445, 0.3245]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Kisenyi Health Center III",
+                        "type": "Clinic",
+                        "contact": "+256-785-456-789",
+                        "description": "Urban health center serving Kisenyi community"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.5678, 0.3125]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Nakawa Health Center IV",
+                        "type": "Clinic",
+                        "contact": "+256-414-285-900",
+                        "description": "Health center with outpatient and maternity services"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.6234, 0.3289]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "name": "Rubaga Hospital",
+                        "type": "Hospital",
+                        "contact": "+256-414-270-591",
+                        "description": "Private hospital operated by the Catholic Church"
+                    },
+                    "geometry": {
+                        "type": "Point",
+                        "coordinates": [32.5489, 0.2987]
+                    }
+                }
+            ]
+        };
+
+        // Initialize the map centered on Kampala
+        const map = L.map('map').setView([0.3176, 32.5825], 12);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
+        }).addTo(map);
+
+        // Define custom icons for different health center types
+        const icons = {
+            'Hospital': L.divIcon({
+                html: '<div style="background: #e74c3c; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+                className: 'custom-icon',
+                iconSize: [30, 30],
+                iconAnchor: [15, 15]
+            }),
+            'Clinic': L.divIcon({
+                html: '<div style="background: #3498db; width: 25px; height: 25px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+                className: 'custom-icon',
+                iconSize: [25, 25],
+                iconAnchor: [12.5, 12.5]
+            }),
+            'Dispensary': L.divIcon({
+                html: '<div style="background: #2ecc71; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3);"></div>',
+                className: 'custom-icon',
+                iconSize: [20, 20],
+                iconAnchor: [10, 10]
+            })
+        };
+
+        // Store markers for search functionality
+        let markers = [];
+
+        // Add GeoJSON layer to the map
+        L.geoJSON(healthCentersData, {
+            pointToLayer: function(feature, latlng) {
+                const icon = icons[feature.properties.type] || icons['Clinic'];
+                const marker = L.marker(latlng, { icon: icon });
+                markers.push({
+                    marker: marker,
+                    name: feature.properties.name,
+                    properties: feature.properties,
+                    latlng: latlng
+                });
+                return marker;
+            },
+            onEachFeature: function(feature, layer) {
+                const props = feature.properties;
+                const popupContent = `
+                    <div class="popup-content">
+                        <h3>${props.name}</h3>
+                        <p><strong>Type:</strong> ${props.type}</p>
+                        <p><strong>Contact:</strong> ${props.contact}</p>
+                        <p><strong>Description:</strong> ${props.description}</p>
+                    </div>
+                `;
+                layer.bindPopup(popupContent);
+            }
+        }).addTo(map);
+
+        // Add legend
+        const legend = L.control({ position: 'bottomright' });
+        legend.onAdd = function(map) {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = `
+                <h4>Legend</h4>
+                <i style="background: #e74c3c;"></i> Hospital<br>
+                <i style="background: #3498db;"></i> Clinic<br>
+                <i style="background: #2ecc71;"></i> Dispensary
+            `;
+            return div;
+        };
+        legend.addTo(map);
+
+        // User location marker
+        let userMarker = null;
+
+        // Search function
+        function searchHealthCenter() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (!searchTerm) {
+                resultsDiv.innerHTML = '<span style="color: #e74c3c;">Please enter a search term</span>';
+                return;
+            }
+
+            const found = markers.filter(m => 
+                m.name.toLowerCase().includes(searchTerm)
+            );
+
+            if (found.length > 0) {
+                const firstResult = found[0];
+                map.setView(firstResult.latlng, 15);
+                firstResult.marker.openPopup();
+                
+                if (found.length === 1) {
+                    resultsDiv.innerHTML = `<span style="color: #2ecc71;">✓ Found: ${firstResult.name}</span>`;
+                } else {
+                    resultsDiv.innerHTML = `<span style="color: #2ecc71;">✓ Found ${found.length} results. Showing: ${firstResult.name}</span>`;
+                }
+            } else {
+                resultsDiv.innerHTML = '<span style="color: #e74c3c;">No health centers found with that name</span>';
+            }
+        }
+
+        // Show user's current location
+        function showMyLocation() {
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (!navigator.geolocation) {
+                resultsDiv.innerHTML = '<span style="color: #e74c3c;">Geolocation is not supported by your browser</span>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<span style="color: #3498db;">🔍 Locating you...</span>';
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+
+                    // Remove existing user marker if any
+                    if (userMarker) {
+                        map.removeLayer(userMarker);
+                    }
+
+                    // Add user location marker
+                    const userIcon = L.divIcon({
+                        html: '<div style="background: #f39c12; width: 20px; height: 20px; border-radius: 50%; border: 3px solid white; box-shadow: 0 0 20px rgba(243, 156, 18, 0.8); animation: pulse 2s infinite;"></div><style>@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.2); } }</style>',
+                        className: 'user-location-icon',
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
+                    });
+
+                    userMarker = L.marker([lat, lng], { icon: userIcon })
+                        .addTo(map)
+                        .bindPopup('<div class="popup-content"><h3>📍 Your Location</h3><p>You are here!</p></div>');
+
+                    map.setView([lat, lng], 14);
+                    resultsDiv.innerHTML = '<span style="color: #2ecc71;">✓ Your location is now shown on the map</span>';
+                },
+                function(error) {
+                    let errorMsg = 'Unable to retrieve your location';
+                    if (error.code === error.PERMISSION_DENIED) {
+                        errorMsg = 'Location access denied. Please enable location permissions.';
+                    }
+                    resultsDiv.innerHTML = `<span style="color: #e74c3c;">${errorMsg}</span>`;
+                }
+            );
+        }
+
+        // Enable search on Enter key
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchHealthCenter();
+            }
+        });
+    </script>
+</body>
+</html>
